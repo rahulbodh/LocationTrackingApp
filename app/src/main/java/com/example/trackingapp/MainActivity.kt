@@ -3,14 +3,18 @@ package com.example.trackingapp
 import android.Manifest
 import android.content.pm.PackageManager
 import android.location.Location
+import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.util.Log
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.annotation.RequiresApi
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
+import androidx.recyclerview.widget.LinearLayoutManager
+import androidx.recyclerview.widget.RecyclerView
 import com.google.android.gms.location.*
 
 class MainActivity : AppCompatActivity() {
@@ -21,9 +25,19 @@ class MainActivity : AppCompatActivity() {
     private val handler = Handler(Looper.getMainLooper())
     private var lastLocation: Location? = null
 
+    private lateinit var recyclerView: RecyclerView
+    private lateinit var adapter: LocationDataAdapter
+    private val locationData = mutableListOf<String>()
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
+
+        // Initialize RecyclerView and Adapter
+        recyclerView = findViewById(R.id.recyclerView)
+        adapter = LocationDataAdapter(locationData)
+        recyclerView.layoutManager = LinearLayoutManager(this, RecyclerView.VERTICAL, false)
+        recyclerView.adapter = adapter
 
         fusedLocationClient = LocationServices.getFusedLocationProviderClient(this)
 
@@ -37,7 +51,7 @@ class MainActivity : AppCompatActivity() {
                     startLocationUpdates()
                 }
                 else -> {
-                    showToast("Location access denied", 1000)
+                    showToast("Location access denied", Toast.LENGTH_SHORT)
                     Log.d("TrackingApp", "Location access denied")
                 }
             }
@@ -72,11 +86,16 @@ class MainActivity : AppCompatActivity() {
 
         // Initialize LocationCallback
         locationCallback = object : LocationCallback() {
+            @RequiresApi(Build.VERSION_CODES.O)
             override fun onLocationResult(locationResult: LocationResult) {
                 super.onLocationResult(locationResult)
                 lastLocation = locationResult.lastLocation
                 Log.d("TrackingApp", "Lat: ${lastLocation?.latitude}, Lon: ${lastLocation?.longitude}")
-                showToast("Lat: ${lastLocation?.latitude}, Lon: ${lastLocation?.longitude}", 1000)
+//                showToast("Lat: ${lastLocation?.latitude}, Lon: ${lastLocation?.longitude}", Toast.LENGTH_SHORT)
+                lastLocation?.let {
+                    // Add the location to the RecyclerView
+                    adapter.addLocation(it)
+                }
             }
         }
 
@@ -87,12 +106,12 @@ class MainActivity : AppCompatActivity() {
         handler.post(object : Runnable {
             override fun run() {
                 lastLocation?.let {
-                    showToast("Lat: ${it.latitude}, Lon: ${it.longitude}", 1000)
+                    showToast("Lat: ${it.latitude}, Lon: ${it.longitude}", Toast.LENGTH_SHORT)
                 } ?: run {
                     showToast("No location available", Toast.LENGTH_SHORT)
                     Log.d("TrackingApp", "No location available")
                 }
-                handler.postDelayed(this, 10 * 1000) // 60 seconds
+                handler.postDelayed(this, 60 * 1000) // 60 seconds
             }
         })
     }

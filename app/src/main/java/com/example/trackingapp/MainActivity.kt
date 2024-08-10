@@ -39,7 +39,6 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
-        requestNotificationPermission()
 
         // Initialize RecyclerView and Adapter
         recyclerView = findViewById(R.id.recyclerView)
@@ -73,6 +72,8 @@ class MainActivity : AppCompatActivity() {
                 Manifest.permission.ACCESS_COARSE_LOCATION
             )
         )
+
+
     }
 
     private fun requestNotificationPermission() {
@@ -126,6 +127,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun startLocationUpdates() {
+        requestNotificationPermission()
         if (ActivityCompat.checkSelfPermission(
                 this,
                 Manifest.permission.ACCESS_FINE_LOCATION

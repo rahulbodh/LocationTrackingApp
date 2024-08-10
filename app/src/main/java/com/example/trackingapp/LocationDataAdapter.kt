@@ -1,5 +1,6 @@
 package com.example.trackingapp
 
+import android.content.Intent
 import android.icu.util.LocaleData
 import android.location.Location
 import android.os.Build
@@ -30,6 +31,13 @@ class LocationDataAdapter(private val data: MutableList<String>) : RecyclerView.
     override fun onBindViewHolder(holder: ViewHolder, position: Int) {
         val location = data[position]
         holder.textView.text = location
+
+        // Remove the location from the list when the delete button is clicked
+        holder.itemView.setOnClickListener {
+            val intent = Intent(holder.itemView.context, MapsActivity::class.java)
+            intent.putExtra("location", location)
+            holder.itemView.context.startActivity(intent)
+        }
     }
 
     @RequiresApi(Build.VERSION_CODES.O)

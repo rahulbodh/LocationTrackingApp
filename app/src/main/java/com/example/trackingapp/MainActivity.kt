@@ -27,7 +27,7 @@ class MainActivity : AppCompatActivity() {
 
     private lateinit var fusedLocationClient: FusedLocationProviderClient
     private lateinit var locationCallback: LocationCallback
-    private val locationUpdateInterval: Long = 10 * 1000 // 10 seconds
+    private val locationUpdateInterval: Long = 60 * 1000 // 10 seconds
     private val handler = Handler(Looper.getMainLooper())
     private var lastLocation: Location? = null
 

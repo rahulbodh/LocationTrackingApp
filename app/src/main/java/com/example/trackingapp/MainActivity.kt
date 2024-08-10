@@ -1,0 +1,58 @@
+package com.example.trackingapp
+
+import android.Manifest
+import android.os.Bundle
+import android.widget.Toast
+import androidx.activity.enableEdgeToEdge
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.appcompat.app.AppCompatActivity
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowInsetsCompat
+
+class MainActivity : AppCompatActivity() {
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        enableEdgeToEdge()
+        setContentView(R.layout.activity_main)
+
+        // Set padding to handle system bars
+        ViewCompat.setOnApplyWindowInsetsListener(findViewById(R.id.main)) { v, insets ->
+            val systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
+            v.setPadding(systemBars.left, systemBars.top, systemBars.right, systemBars.bottom)
+            insets
+        }
+
+        // Location permission request handler
+        val locationPermissionRequest = registerForActivityResult(
+            ActivityResultContracts.RequestMultiplePermissions()
+        ) { permissions ->
+            when {
+                permissions[Manifest.permission.ACCESS_FINE_LOCATION] == true -> {
+                    // Precise location access granted
+                    Toast.makeText(this, "Precise location access granted", Toast.LENGTH_SHORT).show()
+                    // TODO: Start tracking user's precise location
+                }
+                permissions[Manifest.permission.ACCESS_COARSE_LOCATION] == true -> {
+                    // Only approximate location access granted
+                    Toast.makeText(this, "Approximate location access granted", Toast.LENGTH_SHORT).show()
+                    // TODO: Start tracking user's approximate location
+                }
+
+                else -> {
+                    // No location access granted
+                    Toast.makeText(this, "Location access denied", Toast.LENGTH_SHORT).show()
+                }
+            }
+        }
+
+        // Launch the permission request
+        locationPermissionRequest.launch(
+            arrayOf(
+                Manifest.permission.ACCESS_FINE_LOCATION,
+                Manifest.permission.ACCESS_COARSE_LOCATION
+            )
+        )
+    }
+
+}

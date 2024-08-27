@@ -7,7 +7,12 @@ import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.hardware.Sensor
+import android.hardware.SensorEvent
+import android.hardware.SensorEventListener
+import android.hardware.SensorManager
 import android.location.Location
+import android.location.LocationListener
 import android.os.Build
 import android.os.Bundle
 import android.os.Handler
@@ -24,7 +29,7 @@ import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.google.android.gms.location.*
 
-class MainActivity : AppCompatActivity() {
+class MainActivity : AppCompatActivity(), SensorEventListener, LocationListener {
 
     private lateinit var fusedLocationClient: FusedLocationProviderClient
     private lateinit var locationCallback: LocationCallback
@@ -35,7 +40,15 @@ class MainActivity : AppCompatActivity() {
     private lateinit var recyclerView: RecyclerView
     private lateinit var adapter: LocationDataAdapter
     private val locationData = mutableListOf<String>()
-    private lateinit var mySpeed : TextView
+    private lateinit var mySpeed: TextView
+    private lateinit var myDirection: TextView
+
+    private lateinit var sensorManager: SensorManager
+    private var rotationSensor: Sensor? = null
+    private var currentDirectionDegrees: Float = 0.0f
+    private var currentDirectionName: String = "N"
+
+    private val turnThreshold = 30f // threshold
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -45,11 +58,16 @@ class MainActivity : AppCompatActivity() {
         recyclerView = findViewById(R.id.recyclerView)
         adapter = LocationDataAdapter(locationData)
         mySpeed = findViewById(R.id.mySpeed)
+        myDirection = findViewById(R.id.deviceTurn)
 
         recyclerView.layoutManager = LinearLayoutManager(this, RecyclerView.VERTICAL, false)
         recyclerView.adapter = adapter
 
         fusedLocationClient = LocationServices.getFusedLocationProviderClient(this)
+
+        // Initialize SensorManager and Rotation Sensor
+        sensorManager = getSystemService(Context.SENSOR_SERVICE) as SensorManager
+        rotationSensor = sensorManager.getDefaultSensor(Sensor.TYPE_ROTATION_VECTOR)
 
         // Location permission request handler
         val locationPermissionRequest = registerForActivityResult(
@@ -91,6 +109,7 @@ class MainActivity : AppCompatActivity() {
         ActivityResultContracts.RequestPermission()
     ) { isGranted: Boolean ->
         if (isGranted) {
+            Log.d("TrackingApp", "Notification permission granted")
         } else {
             showToast("Notification permission denied", Toast.LENGTH_SHORT)
             Log.d("TrackingApp", "Notification permission denied")
@@ -152,11 +171,17 @@ class MainActivity : AppCompatActivity() {
             override fun onLocationResult(locationResult: LocationResult) {
                 super.onLocationResult(locationResult)
                 lastLocation = locationResult.lastLocation
-                for(location in locationResult.locations){
-//                    val velocity = location.speed * 3.6 // Convert m/s to km/h
-                    val velocity = location.speedAccuracyMetersPerSecond * 3.6
+                for (location in locationResult.locations) {
+                    val velocity = location.speed * 3.6 // Convert m/s to km/h
                     mySpeed.text = String.format("%.2f km/h", velocity)
                     Log.d("TrackingApp", "Speed: $velocity km/h")
+
+                    val directionDegree = location.bearing
+                    val directionName = degreeToDirectionName(directionDegree)
+                    myDirection.text = directionName
+                    Log.d("TrackingApp", "Direction: $directionName")
+
+                    updateDirectionFromGPS(location)
                 }
                 Log.d(
                     "TrackingApp",
@@ -194,6 +219,22 @@ class MainActivity : AppCompatActivity() {
         })
     }
 
+    private fun updateDirectionFromGPS(location: Location?) {
+        location?.let {
+            val bearing = it.bearing
+            currentDirectionDegrees = bearing
+            currentDirectionName = degreeToDirectionName(bearing)
+            myDirection.text = currentDirectionName
+            Log.d("TrackingApp", "GPS Direction Updated: $currentDirectionName ($currentDirectionDegrees°)")
+        }
+    }
+
+    private fun degreeToDirectionName(degrees: Float): String {
+        val directions = arrayOf("N", "NNE", "NE", "ENE", "E", "ESE", "SE", "SSE", "S", "SSW", "SW", "WSW", "W", "WNW", "NW", "NNW")
+        val index = ((degrees % 360) / 22.5).toInt()
+        return directions[index % 16]
+    }
+
     override fun onDestroy() {
         super.onDestroy()
         // Remove location updates to prevent memory leaks
@@ -203,5 +244,42 @@ class MainActivity : AppCompatActivity() {
 
     private fun showToast(message: String, duration: Int) {
         Toast.makeText(this, message, duration).show()
+    }
+
+    override fun onSensorChanged(event: SensorEvent?) {
+        if (event?.sensor?.type == Sensor.TYPE_ROTATION_VECTOR) {
+            val rotationMatrix = FloatArray(9)
+            SensorManager.getRotationMatrixFromVector(rotationMatrix, event.values)
+            val orientationValues = FloatArray(3)
+            SensorManager.getOrientation(rotationMatrix, orientationValues)
+
+            val azimuthDegrees = Math.toDegrees(orientationValues[0].toDouble()).toFloat()
+            val directionName = degreeToDirectionName(azimuthDegrees)
+
+            if (Math.abs(currentDirectionDegrees - azimuthDegrees) > turnThreshold) {
+                myDirection.text = directionName
+                currentDirectionDegrees = azimuthDegrees
+                currentDirectionName = directionName
+                Log.d("TrackingApp", "Device Turned: $directionName ($azimuthDegrees°)")
+            }
+        }
+    }
+
+    override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) {
+        // Handle accuracy changes if needed
+    }
+
+    override fun onLocationChanged(location: Location) {
+        lastLocation = location
+        val velocity = location.speed * 3.6 // Convert m/s to km/h
+        mySpeed.text = String.format("%.2f km/h", velocity)
+        Log.d("TrackingApp", "Updated Speed: $velocity km/h")
+
+        val directionDegree = location.bearing
+        val directionName = degreeToDirectionName(directionDegree)
+        myDirection.text = directionName
+        Log.d("TrackingApp", "Updated Direction: $directionName")
+
+        updateDirectionFromGPS(location)
     }
 }

@@ -67,7 +67,15 @@ class MainActivity : AppCompatActivity(), SensorEventListener, LocationListener 
 
         // Initialize SensorManager and Rotation Sensor
         sensorManager = getSystemService(Context.SENSOR_SERVICE) as SensorManager
-        rotationSensor = sensorManager.getDefaultSensor(Sensor.TYPE_ROTATION_VECTOR)
+        rotationSensor = sensorManager.getDefaultSensor(Sensor.TYPE_GEOMAGNETIC_ROTATION_VECTOR)
+
+        rotationSensor?.let {
+            sensorManager.registerListener(
+                this,
+                it,
+                SensorManager.SENSOR_DELAY_NORMAL
+            )
+        }
 
         // Location permission request handler
         val locationPermissionRequest = registerForActivityResult(
@@ -130,7 +138,8 @@ class MainActivity : AppCompatActivity(), SensorEventListener, LocationListener 
             .setSmallIcon(R.drawable.ic_launcher_foreground)
             .setContentIntent(pendingIntent)
             .build()
-        val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        val notificationManager =
+            getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         notificationManager.notify(1, notification)
     }
 
@@ -142,7 +151,8 @@ class MainActivity : AppCompatActivity(), SensorEventListener, LocationListener 
         val channel = NotificationChannel("Channel_ID", name, importance).apply {
             description = descriptionText
         }
-        val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        val notificationManager =
+            getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         notificationManager.createNotificationChannel(channel)
     }
 
@@ -161,9 +171,10 @@ class MainActivity : AppCompatActivity(), SensorEventListener, LocationListener 
         }
 
         // Create location request
-        val locationRequest = LocationRequest.Builder(Priority.PRIORITY_HIGH_ACCURACY, locationUpdateInterval)
-            .setMinUpdateDistanceMeters(0f) // Optional: Update location if the device moves 0 meters
-            .build()
+        val locationRequest =
+            LocationRequest.Builder(Priority.PRIORITY_HIGH_ACCURACY, locationUpdateInterval)
+                .setMinUpdateDistanceMeters(0f) // Optional: Update location if the device moves 0 meters
+                .build()
 
         // Initialize LocationCallback
         locationCallback = object : LocationCallback() {
@@ -225,14 +236,40 @@ class MainActivity : AppCompatActivity(), SensorEventListener, LocationListener 
             currentDirectionDegrees = bearing
             currentDirectionName = degreeToDirectionName(bearing)
             myDirection.text = currentDirectionName
-            Log.d("TrackingApp", "GPS Direction Updated: $currentDirectionName ($currentDirectionDegrees°)")
+            Log.d(
+                "TrackingApp",
+                "GPS Direction Updated: $currentDirectionName ($currentDirectionDegrees°)"
+            )
         }
     }
 
     private fun degreeToDirectionName(degrees: Float): String {
-        val directions = arrayOf("N", "NNE", "NE", "ENE", "E", "ESE", "SE", "SSE", "S", "SSW", "SW", "WSW", "W", "WNW", "NW", "NNW")
-        val index = ((degrees % 360) / 22.5).toInt()
-        return directions[index % 16]
+        // Use standard compass directions with finer granularity
+        return when {
+            degrees >= 337.5 || degrees < 22.5 -> "N"
+            degrees >= 22.5 && degrees < 67.5 -> "NE"
+            degrees >= 67.5 && degrees < 112.5 -> "E"
+            degrees >= 112.5 && degrees < 157.5 -> "SE"
+            degrees >= 157.5 && degrees < 202.5 -> "S"
+            degrees >= 202.5 && degrees < 247.5 -> "SW"
+            degrees >= 247.5 && degrees < 292.5 -> "W"
+            degrees >= 292.5 && degrees < 337.5 -> "NW"
+            else -> "N" // Fallback case, should not reach here
+        }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        // Register the sensor listener when the activity is visible
+        rotationSensor?.let {
+            sensorManager.registerListener(this, it, SensorManager.SENSOR_DELAY_NORMAL)
+        }
+    }
+
+    override fun onPause() {
+        super.onPause()
+        // Unregister the sensor listener when the activity is not visible to save battery
+        sensorManager.unregisterListener(this)
     }
 
     override fun onDestroy() {
@@ -257,9 +294,10 @@ class MainActivity : AppCompatActivity(), SensorEventListener, LocationListener 
             val directionName = degreeToDirectionName(azimuthDegrees)
 
             if (Math.abs(currentDirectionDegrees - azimuthDegrees) > turnThreshold) {
-                myDirection.text = directionName
                 currentDirectionDegrees = azimuthDegrees
                 currentDirectionName = directionName
+                myDirection.text = directionName
+
                 Log.d("TrackingApp", "Device Turned: $directionName ($azimuthDegrees°)")
             }
         }

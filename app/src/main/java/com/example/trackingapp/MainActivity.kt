@@ -46,9 +46,9 @@ class MainActivity : AppCompatActivity(), SensorEventListener, LocationListener 
     private lateinit var sensorManager: SensorManager
     private var rotationSensor: Sensor? = null
     private var currentDirectionDegrees: Float = 0.0f
-    private var currentDirectionName: String = "N"
+    private var currentDirectionName: String = ""
+    private var currentAzimuth: Float = 0f
 
-    private val turnThreshold = 30f // threshold
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -69,13 +69,7 @@ class MainActivity : AppCompatActivity(), SensorEventListener, LocationListener 
         sensorManager = getSystemService(Context.SENSOR_SERVICE) as SensorManager
         rotationSensor = sensorManager.getDefaultSensor(Sensor.TYPE_GEOMAGNETIC_ROTATION_VECTOR)
 
-        rotationSensor?.let {
-            sensorManager.registerListener(
-                this,
-                it,
-                SensorManager.SENSOR_DELAY_NORMAL
-            )
-        }
+        rotationSensor = sensorManager.getDefaultSensor(Sensor.TYPE_ROTATION_VECTOR)
 
         // Location permission request handler
         val locationPermissionRequest = registerForActivityResult(
@@ -261,8 +255,8 @@ class MainActivity : AppCompatActivity(), SensorEventListener, LocationListener 
     override fun onResume() {
         super.onResume()
         // Register the sensor listener when the activity is visible
-        rotationSensor?.let {
-            sensorManager.registerListener(this, it, SensorManager.SENSOR_DELAY_NORMAL)
+        rotationSensor?.also { sensor ->
+            sensorManager.registerListener(this, sensor, SensorManager.SENSOR_DELAY_UI)
         }
     }
 
@@ -290,16 +284,23 @@ class MainActivity : AppCompatActivity(), SensorEventListener, LocationListener 
             val orientationValues = FloatArray(3)
             SensorManager.getOrientation(rotationMatrix, orientationValues)
 
-            val azimuthDegrees = Math.toDegrees(orientationValues[0].toDouble()).toFloat()
-            val directionName = degreeToDirectionName(azimuthDegrees)
+            currentAzimuth = Math.toDegrees(orientationValues[0].toDouble()).toFloat()
+            currentAzimuth = (currentAzimuth + 360) % 360
 
-            if (Math.abs(currentDirectionDegrees - azimuthDegrees) > turnThreshold) {
-                currentDirectionDegrees = azimuthDegrees
-                currentDirectionName = directionName
-                myDirection.text = directionName
+            val directionName = degreeToDirectionName(currentAzimuth)
 
-                Log.d("TrackingApp", "Device Turned: $directionName ($azimuthDegrees°)")
-            }
+//            myDirection.text = String.format("%.0f°", currentAzimuth)
+
+            myDirection.text = directionName
+            Log.d("TrackingApp", "Compass Direction: $directionName ($currentAzimuth°)")
+
+//            if (Math.abs(currentDirectionDegrees - azimuthDegrees) > turnThreshold) {
+//                currentDirectionDegrees = azimuthDegrees
+//                currentDirectionName = directionName
+//                myDirection.text = directionName
+//
+//                Log.d("TrackingApp", "Device Turned: $directionName ($azimuthDegrees°)")
+//            }
         }
     }
 

@@ -13,6 +13,7 @@ import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.util.Log
+import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.annotation.RequiresApi
@@ -27,22 +28,24 @@ class MainActivity : AppCompatActivity() {
 
     private lateinit var fusedLocationClient: FusedLocationProviderClient
     private lateinit var locationCallback: LocationCallback
-    private val locationUpdateInterval: Long = 60 * 1000 // 10 seconds
+    private val locationUpdateInterval: Long = 1000 // 1 second
     private val handler = Handler(Looper.getMainLooper())
     private var lastLocation: Location? = null
 
     private lateinit var recyclerView: RecyclerView
     private lateinit var adapter: LocationDataAdapter
     private val locationData = mutableListOf<String>()
+    private lateinit var mySpeed : TextView
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
-
         // Initialize RecyclerView and Adapter
         recyclerView = findViewById(R.id.recyclerView)
         adapter = LocationDataAdapter(locationData)
+        mySpeed = findViewById(R.id.mySpeed)
+
         recyclerView.layoutManager = LinearLayoutManager(this, RecyclerView.VERTICAL, false)
         recyclerView.adapter = adapter
 
@@ -72,8 +75,6 @@ class MainActivity : AppCompatActivity() {
                 Manifest.permission.ACCESS_COARSE_LOCATION
             )
         )
-
-
     }
 
     private fun requestNotificationPermission() {
@@ -151,6 +152,12 @@ class MainActivity : AppCompatActivity() {
             override fun onLocationResult(locationResult: LocationResult) {
                 super.onLocationResult(locationResult)
                 lastLocation = locationResult.lastLocation
+                for(location in locationResult.locations){
+//                    val velocity = location.speed * 3.6 // Convert m/s to km/h
+                    val velocity = location.speedAccuracyMetersPerSecond * 3.6
+                    mySpeed.text = String.format("%.2f km/h", velocity)
+                    Log.d("TrackingApp", "Speed: $velocity km/h")
+                }
                 Log.d(
                     "TrackingApp",
                     "Lat: ${lastLocation?.latitude}, Lon: ${lastLocation?.longitude}"
@@ -171,16 +178,18 @@ class MainActivity : AppCompatActivity() {
             Looper.getMainLooper()
         )
 
-        // Show toast every minute
+        // Show toast every second
         handler.post(object : Runnable {
             override fun run() {
                 lastLocation?.let {
-                    // Optionally show a toast message here if needed
+                    val velocity = it.speed * 3.6 // Convert m/s to km/h
+                    mySpeed.text = String.format("%.2f km/h", velocity)
+                    Log.d("TrackingApp", "Updated Speed: $velocity km/h")
                 } ?: run {
                     showToast("No location available", Toast.LENGTH_SHORT)
                     Log.d("TrackingApp", "No location available")
                 }
-                handler.postDelayed(this, 60 * 1000) // 60 seconds
+                handler.postDelayed(this, 1000) // 1 second
             }
         })
     }

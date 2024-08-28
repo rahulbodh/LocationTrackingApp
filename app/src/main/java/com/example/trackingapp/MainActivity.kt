@@ -49,6 +49,10 @@ class MainActivity : AppCompatActivity(), SensorEventListener, LocationListener 
     private var currentDirectionName: String = ""
     private var currentAzimuth: Float = 0f
 
+    // Additional variables to track turning and speed
+    private var lastAzimuth: Float = 0f
+    private val turnThreshold = 30f // Angle in degrees considered as a turn
+    private val speedLimit = 2f // Speed limit in km/h
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -67,7 +71,7 @@ class MainActivity : AppCompatActivity(), SensorEventListener, LocationListener 
 
         // Initialize SensorManager and Rotation Sensor
         sensorManager = getSystemService(Context.SENSOR_SERVICE) as SensorManager
-        rotationSensor = sensorManager.getDefaultSensor(Sensor.TYPE_GEOMAGNETIC_ROTATION_VECTOR)
+//        rotationSensor = sensorManager.getDefaultSensor(Sensor.TYPE_GEOMAGNETIC_ROTATION_VECTOR)
 
         rotationSensor = sensorManager.getDefaultSensor(Sensor.TYPE_ROTATION_VECTOR)
 
@@ -273,9 +277,7 @@ class MainActivity : AppCompatActivity(), SensorEventListener, LocationListener 
         handler.removeCallbacksAndMessages(null) // Remove all callbacks
     }
 
-    private fun showToast(message: String, duration: Int) {
-        Toast.makeText(this, message, duration).show()
-    }
+
 
     override fun onSensorChanged(event: SensorEvent?) {
         if (event?.sensor?.type == Sensor.TYPE_ROTATION_VECTOR) {
@@ -285,22 +287,29 @@ class MainActivity : AppCompatActivity(), SensorEventListener, LocationListener 
             SensorManager.getOrientation(rotationMatrix, orientationValues)
 
             currentAzimuth = Math.toDegrees(orientationValues[0].toDouble()).toFloat()
-            currentAzimuth = (currentAzimuth + 360) % 360
+            val azimuthDegrees = (currentAzimuth + 360) % 360
 
-            val directionName = degreeToDirectionName(currentAzimuth)
-
-//            myDirection.text = String.format("%.0f°", currentAzimuth)
-
+            val directionName = degreeToDirectionName(azimuthDegrees)
             myDirection.text = directionName
-            Log.d("TrackingApp", "Compass Direction: $directionName ($currentAzimuth°)")
+            Log.d("TrackingApp", "Compass Direction: $directionName ($azimuthDegrees°)")
 
-//            if (Math.abs(currentDirectionDegrees - azimuthDegrees) > turnThreshold) {
-//                currentDirectionDegrees = azimuthDegrees
-//                currentDirectionName = directionName
-//                myDirection.text = directionName
-//
-//                Log.d("TrackingApp", "Device Turned: $directionName ($azimuthDegrees°)")
-//            }
+            // Detect turn and overspeed
+            val turnAngle = Math.abs(azimuthDegrees - lastAzimuth)
+//            lastAzimuth = azimuthDegrees
+
+            lastLocation?.let {
+                val speedKmH = it.speed * 3.6
+                if (turnAngle > turnThreshold && speedKmH > speedLimit) {
+                    Log.d("TrackingApp", "Turn detected while overspeeding!")
+                    Log.d("TrackingApp", "Overspeed At: $turnAngle° at speed $speedKmH km/h")
+                    showToast("Overspeed at : $turnAngle° at speed $speedKmH km/h", Toast.LENGTH_LONG)
+                }
+            }
+
+            // Update the lastAzimuth value
+            if(turnAngle > turnThreshold) {
+                lastAzimuth = azimuthDegrees
+            }
         }
     }
 
@@ -320,5 +329,15 @@ class MainActivity : AppCompatActivity(), SensorEventListener, LocationListener 
         Log.d("TrackingApp", "Updated Direction: $directionName")
 
         updateDirectionFromGPS(location)
+    }
+
+    private fun Context.showToast(message: String, durationInMillis: Int) {
+        val toast = Toast.makeText(this, message, Toast.LENGTH_SHORT)
+        toast.show()
+
+        // Cancel the toast after the specified duration
+        Handler(Looper.getMainLooper()).postDelayed({
+            toast.cancel()
+        }, durationInMillis.toLong())
     }
 }

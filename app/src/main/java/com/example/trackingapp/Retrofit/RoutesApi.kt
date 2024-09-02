@@ -7,7 +7,7 @@ import retrofit2.http.Query
 
 interface RoutesApi {
     @GET("directions/json")
-    suspend fun getRoutes(@Query ("origin") origin: String,
+     fun getRoutes(@Query ("origin") origin: String,
                           @Query("destination") destination: String,
                           @Query("key") apiKey: String): Call<RouteResponse>
 

@@ -7,7 +7,7 @@ import com.example.trackingapp.di.DaggerAppComponent
 
 class TrackApp : Application(){
 
-   private val appComponent: AppComponent by lazy {
+   val appComponent: AppComponent by lazy {
        DaggerAppComponent.builder()
            .appModule(AppModule())
            .build()

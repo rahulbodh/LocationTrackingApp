@@ -29,6 +29,8 @@ class AppModule {
             .build()
     }
 
+    @Singleton
+    @Provides
     fun providesRouteApi(retrofit: Retrofit) : RoutesApi {
         return retrofit.create(RoutesApi::class.java)
     }

@@ -2,6 +2,7 @@ plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.jetbrains.kotlin.android)
     alias(libs.plugins.google.android.libraries.mapsplatform.secrets.gradle.plugin)
+    id("kotlin-kapt")
 }
 
 android {
@@ -54,8 +55,8 @@ dependencies {
     implementation("androidx.work:work-runtime-ktx:2.8.0")
 
     // Dagger 2 dependencies
-    implementation ("com.google.dagger:dagger:2.47")
-    annotationProcessor ("com.google.dagger:dagger-compiler:2.47")
+    implementation ("com.google.dagger:dagger:2.52")
+    kapt ("com.google.dagger:dagger-compiler:2.52")
 
     // Retrofit dependencies for network requests
     implementation ("com.squareup.retrofit2:retrofit:2.9.0")

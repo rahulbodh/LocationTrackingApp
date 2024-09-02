@@ -25,7 +25,7 @@ class AppModule {
     @Provides
     fun provideRetrofit(client : OkHttpClient) : Retrofit{
         return Retrofit.Builder()
-            .baseUrl("//maps.googleapis.com/maps/api/directions/")
+            .baseUrl("//maps.googleapis.com/maps/api/")
             .build()
     }
 

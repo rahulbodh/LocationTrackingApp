@@ -1,4 +1,4 @@
-package com.example.trackingapp
+package com.example.trackingapp.ui
 
 import android.Manifest
 import android.app.NotificationChannel
@@ -27,6 +27,8 @@ import androidx.core.app.ActivityCompat
 import androidx.core.app.NotificationCompat
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
+import com.example.trackingapp.R
+import com.example.trackingapp.adapter.LocationDataAdapter
 import com.google.android.gms.location.*
 
 class MainActivity : AppCompatActivity(), SensorEventListener, LocationListener {

@@ -1,7 +1,6 @@
-package com.example.trackingapp
+package com.example.trackingapp.adapter
 
 import android.content.Intent
-import android.icu.util.LocaleData
 import android.location.Location
 import android.os.Build
 import android.view.LayoutInflater
@@ -10,6 +9,8 @@ import android.view.ViewGroup
 import android.widget.TextView
 import androidx.annotation.RequiresApi
 import androidx.recyclerview.widget.RecyclerView
+import com.example.trackingapp.ui.MapsActivity
+import com.example.trackingapp.R
 import java.time.LocalDate
 import java.time.LocalTime
 

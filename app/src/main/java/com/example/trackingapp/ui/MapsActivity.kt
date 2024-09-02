@@ -1,8 +1,9 @@
-package com.example.trackingapp
+package com.example.trackingapp.ui
 
 import androidx.appcompat.app.AppCompatActivity
 import android.os.Bundle
 import android.util.Log
+import com.example.trackingapp.R
 
 import com.google.android.gms.maps.CameraUpdateFactory
 import com.google.android.gms.maps.GoogleMap

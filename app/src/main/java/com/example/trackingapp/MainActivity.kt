@@ -291,7 +291,7 @@ class MainActivity : AppCompatActivity(), SensorEventListener, LocationListener 
 
             val directionName = degreeToDirectionName(azimuthDegrees)
             myDirection.text = directionName
-            Log.d("TrackingApp", "Compass Direction: $directionName ($azimuthDegrees°)")
+//            Log.d("TrackingApp", "Compass Direction: $directionName ($azimuthDegrees°)")
 
             // Detect turn and overspeed
             val turnAngle = Math.abs(azimuthDegrees - lastAzimuth)
@@ -299,6 +299,7 @@ class MainActivity : AppCompatActivity(), SensorEventListener, LocationListener 
 
             lastLocation?.let {
                 val speedKmH = it.speed * 3.6
+                Log.d("TrackingApp", "Speed2: $speedKmH km/h")
                 if (turnAngle > turnThreshold && speedKmH > speedLimit) {
                     Log.d("TrackingApp", "Turn detected while overspeeding!")
                     Log.d("TrackingApp", "Overspeed At: $turnAngle° at speed $speedKmH km/h")

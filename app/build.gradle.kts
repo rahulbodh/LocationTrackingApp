@@ -53,4 +53,15 @@ dependencies {
     implementation("com.google.android.gms:play-services-location:21.0.1")
     implementation("androidx.work:work-runtime-ktx:2.8.0")
 
+    // Dagger 2 dependencies
+    implementation ("com.google.dagger:dagger:2.47")
+    annotationProcessor ("com.google.dagger:dagger-compiler:2.47")
+
+    // Retrofit dependencies for network requests
+    implementation ("com.squareup.retrofit2:retrofit:2.9.0")
+    implementation ("com.squareup.retrofit2:converter-gson:2.9.0")
+
+    // OkHttp for logging
+    implementation ("com.squareup.okhttp3:logging-interceptor:4.10.0")
+
 }

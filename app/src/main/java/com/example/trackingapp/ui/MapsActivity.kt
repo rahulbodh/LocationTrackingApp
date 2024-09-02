@@ -4,6 +4,7 @@ import androidx.appcompat.app.AppCompatActivity
 import android.os.Bundle
 import android.util.Log
 import com.example.trackingapp.R
+import com.example.trackingapp.R.string.maps_api_key
 import com.example.trackingapp.Retrofit.RoutesApi
 
 import com.google.android.gms.maps.CameraUpdateFactory
@@ -40,7 +41,7 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback {
         // Inject dependencies
         (application as TrackApp).appComponent.inject(this)
 
-        val apiKey = getString(R.string.maps_api_key)
+        val apiKey = getString(maps_api_key)
 
         getRoutes("Saharanpur", "Delhi", apiKey)
 
@@ -72,6 +73,7 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback {
                 if (response.isSuccessful && response.body() != null) {
                     // Handle the response
                     Log.d("MainActivity", "Route: ${response.body()}")
+
                 } else {
                     Log.e("MainActivity", "Response failed")
                 }
@@ -87,8 +89,8 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback {
         mMap = googleMap
 
         // Add a marker in Sydney and move the camera
-        val sydney = LatLng(lat.toDouble(), lon.toDouble())
-        mMap.addMarker(MarkerOptions().position(sydney).title("Marker in Sydney"))
-        mMap.moveCamera(CameraUpdateFactory.newLatLng(sydney))
+//        val sydney = LatLng(lat.toDouble(), lon.toDouble())
+//        mMap.addMarker(MarkerOptions().position(sydney).title("Marker in Sydney"))
+//        mMap.moveCamera(CameraUpdateFactory.newLatLng(sydney))
     }
 }

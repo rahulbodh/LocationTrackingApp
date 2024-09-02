@@ -6,6 +6,7 @@ import dagger.Provides
 import okhttp3.OkHttpClient
 import okhttp3.logging.HttpLoggingInterceptor
 import retrofit2.Retrofit
+import retrofit2.converter.gson.GsonConverterFactory
 import javax.inject.Singleton
 
 @Module
@@ -25,7 +26,9 @@ class AppModule {
     @Provides
     fun provideRetrofit(client : OkHttpClient) : Retrofit{
         return Retrofit.Builder()
-            .baseUrl("//maps.googleapis.com/maps/api/")
+            .baseUrl("https://maps.googleapis.com/maps/api/")
+            .client(client)
+            .addConverterFactory(GsonConverterFactory.create())
             .build()
     }
 

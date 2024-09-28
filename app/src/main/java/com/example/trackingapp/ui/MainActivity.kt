@@ -11,6 +11,8 @@ import android.hardware.Sensor
 import android.hardware.SensorEvent
 import android.hardware.SensorEventListener
 import android.hardware.SensorManager
+import android.location.Address
+import android.location.Geocoder
 import android.location.Location
 import android.location.LocationListener
 import android.os.Build
@@ -30,6 +32,8 @@ import androidx.recyclerview.widget.RecyclerView
 import com.example.trackingapp.R
 import com.example.trackingapp.adapter.LocationDataAdapter
 import com.google.android.gms.location.*
+import java.io.IOException
+import java.util.Locale
 
 class MainActivity : AppCompatActivity(), SensorEventListener, LocationListener {
 
@@ -44,7 +48,7 @@ class MainActivity : AppCompatActivity(), SensorEventListener, LocationListener 
     private val locationData = mutableListOf<String>()
     private lateinit var mySpeed: TextView
     private lateinit var myDirection: TextView
-
+    private lateinit var myPlace : TextView
     private lateinit var sensorManager: SensorManager
     private var rotationSensor: Sensor? = null
     private var currentDirectionDegrees: Float = 0.0f
@@ -65,6 +69,7 @@ class MainActivity : AppCompatActivity(), SensorEventListener, LocationListener 
         adapter = LocationDataAdapter(locationData)
         mySpeed = findViewById(R.id.mySpeed)
         myDirection = findViewById(R.id.deviceTurn)
+        myPlace = findViewById(R.id.PlaceName)
 
         recyclerView.layoutManager = LinearLayoutManager(this, RecyclerView.VERTICAL, false)
         recyclerView.adapter = adapter
@@ -193,6 +198,7 @@ class MainActivity : AppCompatActivity(), SensorEventListener, LocationListener 
                     Log.d("TrackingApp", "Direction: $directionName")
 
                     updateDirectionFromGPS(location)
+                    getPlaceNameFromLocation(location.latitude, location.longitude)
                 }
                 Log.d(
                     "TrackingApp",
@@ -228,6 +234,30 @@ class MainActivity : AppCompatActivity(), SensorEventListener, LocationListener 
                 handler.postDelayed(this, 1000) // 1 second
             }
         })
+    }
+
+    // Method for reverse geocoding to get place name
+    private fun getPlaceNameFromLocation(latitude: Double, longitude: Double) {
+        val geocoder = Geocoder(this, Locale.getDefault())
+        try {
+            val addresses: List<Address> = geocoder.getFromLocation(latitude, longitude, 1)!!
+            if (addresses.isNotEmpty()) {
+                val address: Address = addresses[0]
+                val placeName = address.getAddressLine(0)  // Full address
+                val city = address.locality  // City
+                val country = address.countryName  // Country
+
+                myPlace.text = "Place: $placeName\nCity: $city\nCountry: $country"
+                Log.d("TrackingApp", "Place: $placeName, City: $city, Country: $country")
+            } else {
+                myPlace.text = "Place: Unknown"
+                Log.d("TrackingApp", "No address found for the location")
+            }
+        } catch (e: IOException) {
+            e.printStackTrace()
+            myPlace.text = "Unable to get place name"
+            Log.d("TrackingApp", "Geocoder failed", e)
+        }
     }
 
     private fun updateDirectionFromGPS(location: Location?) {

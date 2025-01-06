@@ -33,7 +33,15 @@ import com.example.trackingapp.R
 import com.example.trackingapp.adapter.LocationDataAdapter
 import com.google.android.gms.location.*
 import java.io.IOException
+import java.time.Duration
+import java.time.LocalDateTime
+import java.time.LocalTime
+import java.time.ZoneOffset
+import java.time.ZonedDateTime
+import java.time.format.DateTimeFormatter
 import java.util.Locale
+import java.util.Timer
+import java.util.TimerTask
 
 class MainActivity : AppCompatActivity(), SensorEventListener, LocationListener {
 
@@ -48,7 +56,7 @@ class MainActivity : AppCompatActivity(), SensorEventListener, LocationListener 
     private val locationData = mutableListOf<String>()
     private lateinit var mySpeed: TextView
     private lateinit var myDirection: TextView
-    private lateinit var myPlace : TextView
+    private lateinit var myPlace: TextView
     private lateinit var sensorManager: SensorManager
     private var rotationSensor: Sensor? = null
     private var currentDirectionDegrees: Float = 0.0f
@@ -59,6 +67,41 @@ class MainActivity : AppCompatActivity(), SensorEventListener, LocationListener 
     private var lastAzimuth: Float = 0f
     private val turnThreshold = 30f // Angle in degrees considered as a turn
     private val speedLimit = 2f // Speed limit in km/h
+    private var currentSpeedKmH = 0f
+    private val accuracy = 0f
+    private val lastAccuracy = 0f
+    private val lastAccuracyTimestamp = 0L
+    private val SPEED_LIMIT_THRESHOLD_KMH = 10f
+    private val MAX_SPEED = 80f
+    private val SUDDEEN_BREAK_THRESHOLD_KMH = 50f
+    private val HARSE_ACCELERATION_THRESHOLD = 50f
+    private val CORNERING_SPEED_THRESHOLD = 25f
+    private val INTERVAL_TIME = 1f
+    private var idleStartTime = 0L
+    private val idleEndTime = 0L
+    private var isOverspeed = false
+    private var isSharpturn = false
+    private var isSuddenBreak = false
+    private var isHarseAcceleration = false
+    private var isLateNight = false
+    private var isOnCall = false
+    private final val SAME_ACCURACY_THRESHOLD_MS = 5000 // 1 second
+    private var onSpeedTimer: Timer? = null
+    private var IdleSpeedTimer: Timer? = null
+    private var isTripRequestSent = false
+    private val IDLE_TIMER_TIMEOUT = 24 * 60 * 60 * 1000L
+    private var isSpeedMonitoring = false
+    private var LATE_NIGHT_TIME = "10:00"
+    private var highSpeedStartTime: LocalDateTime? = null
+    private var lastUpdateTime: Long = 0
+    private var lastSpeedKmHForEvents = 0.0f
+    private val speedHandler = Handler()
+    private var speedRunnable: Runnable? = null
+    private val SPEED_TIMER_TIMEOUT = 3000L
+    private var lastSpeedExceededTime: Long =
+        0L // Tracks the last time speed exceeded the threshold
+    private var tripIdLastSentTime: Long = 0L
+
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -181,59 +224,282 @@ class MainActivity : AppCompatActivity(), SensorEventListener, LocationListener 
                 .setMinUpdateDistanceMeters(0f) // Optional: Update location if the device moves 0 meters
                 .build()
 
-        // Initialize LocationCallback
         locationCallback = object : LocationCallback() {
             @RequiresApi(Build.VERSION_CODES.O)
             override fun onLocationResult(locationResult: LocationResult) {
                 super.onLocationResult(locationResult)
+                if (locationResult == null) return
+
                 lastLocation = locationResult.lastLocation
                 for (location in locationResult.locations) {
-                    val velocity = location.speed * 3.6 // Convert m/s to km/h
-                    mySpeed.text = String.format("%.2f km/h", velocity)
-                    Log.d("TrackingApp", "Speed: $velocity km/h")
+                    val currentTime = System.currentTimeMillis()
+                    lastLocation = location
+                    currentSpeedKmH = location.speed * 3.6f
 
-                    val directionDegree = location.bearing
-                    val directionName = degreeToDirectionName(directionDegree)
-                    myDirection.text = directionName
-                    Log.d("TrackingApp", "Direction: $directionName")
-
-                    updateDirectionFromGPS(location)
-                    getPlaceNameFromLocation(location.latitude, location.longitude)
-                }
-                Log.d(
-                    "TrackingApp",
-                    "Lat: ${lastLocation?.latitude}, Lon: ${lastLocation?.longitude}"
-                )
-                lastLocation?.let {
-                    // Add the location to the RecyclerView
-                    adapter.addLocation(it)
-                    // Send notification with latitude and longitude
-                    sendNotification(it.latitude, it.longitude)
+                    Log.d("LocationChanged", "Speed: $currentSpeedKmH km/h")
+                    if (currentSpeedKmH > SPEED_LIMIT_THRESHOLD_KMH) {
+                        if (idleStartTime > 0) {
+                            val difference = currentTime - idleStartTime
+                            Log.e("LocationService", "Idle time: $difference ms")
+                            if (difference >= INTERVAL_TIME * 60 * 1000) {
+                                sendTripRequest()
+                                idleStartTime = 0
+                                Log.e("LocationService", "Difference is greater the 2 minutes")
+                            }else{
+                                Log.e("LocationService", "Difference is less the 2 minutes")
+                            }
+                        }
+                        handleSpeedAboveThreshold()
+                    } else {
+                        handleSpeedBelowThreshold()
+                        if (idleStartTime == 0L) {
+                            idleStartTime = currentTime
+                        }
+                    }
                 }
             }
+
         }
 
-        // Request location updates
+
+// Request location updates
         fusedLocationClient.requestLocationUpdates(
             locationRequest,
             locationCallback,
             Looper.getMainLooper()
         )
 
-        // Show toast every second
-        handler.post(object : Runnable {
-            override fun run() {
-                lastLocation?.let {
-                    val velocity = it.speed * 3.6 // Convert m/s to km/h
-                    mySpeed.text = String.format("%.2f km/h", velocity)
-                    Log.d("TrackingApp", "Updated Speed: $velocity km/h")
-                } ?: run {
-                    showToast("No location available", Toast.LENGTH_SHORT)
-                    Log.d("TrackingApp", "No location available")
+// Show toast every second
+        handler.post(
+            object : Runnable {
+                override fun run() {
+                    lastLocation?.let {
+                        val velocity = it.speed * 3.6 // Convert m/s to km/h
+                        mySpeed.text = String.format("%.2f km/h", velocity)
+                        Log.d("TrackingApp", "Updated Speed: $velocity km/h")
+                    } ?: run {
+                        showToast("No location available", Toast.LENGTH_SHORT)
+                        Log.d("TrackingApp", "No location available")
+                    }
+                    handler.postDelayed(this, 1000) // 1 second
                 }
-                handler.postDelayed(this, 1000) // 1 second
+            })
+    }
+
+    private fun handleSpeedBelowThreshold() {
+        stopTimerOnSpeedChange()
+        startTimerOnIdleSpeed()
+        stopSpeedMonitor()
+        resetFlags()
+    }
+
+    private fun stopTimerOnSpeedChange() {
+        if (this.onSpeedTimer != null) {
+            this.onSpeedTimer!!.cancel()
+            this.onSpeedTimer = null
+        }
+    }
+
+    private fun startTimerOnIdleSpeed() {
+        if (IdleSpeedTimer != null) {
+            IdleSpeedTimer!!.cancel()
+            IdleSpeedTimer!!.purge()
+            IdleSpeedTimer = null
+        }
+        this.IdleSpeedTimer = Timer()
+        this.IdleSpeedTimer!!.schedule(object : TimerTask() {
+            @RequiresApi(Build.VERSION_CODES.O)
+            override fun run() {
+                if (isTripRequestSent) {
+//                    getAddress(lastLocation!!.latitude, lastLocation!!.longitude)
+                    val lat = lastLocation!!.latitude.toString()
+                    val lng = lastLocation!!.longitude.toString()
+//                    val dateTimeUtils: DateTimeUtils = DateTimeUtils()
+                    val currentTime = ZonedDateTime.now(ZoneOffset.UTC)
+                    val formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'")
+                    val formattedTime = currentTime.format(formatter)
+                    Log.d("TripData", "TripId sent by IdleSpeed Timer")
+                    isTripRequestSent = false
+                }
             }
-        })
+        }, IDLE_TIMER_TIMEOUT, IDLE_TIMER_TIMEOUT) // 30 minutes (1800000 milliseconds)
+    }
+
+    private fun stopSpeedMonitor() {
+        if (!isSpeedMonitoring) return
+
+        isSpeedMonitoring = false
+        if (speedRunnable != null) {
+            speedHandler.removeCallbacks(speedRunnable!!)
+            speedRunnable = null
+        }
+    }
+
+    private fun resetFlags() {
+        isOverspeed = false
+        isSharpturn = false
+        isSuddenBreak = false
+        isHarseAcceleration = false
+        isLateNight = false
+        isOnCall = false
+    }
+
+    @RequiresApi(Build.VERSION_CODES.O)
+    private fun handleSpeedAboveThreshold() {
+        stopTimerOnIdleSpeed()
+//        getAddress(lastLocation!!.latitude, lastLocation!!.longitude)
+
+        if (!isTripRequestSent) {
+            sendTripRequest()
+        }
+
+
+        startSpeedMonitor()
+        checkForRiskEvents(currentSpeedKmH)
+
+        if (currentSpeedKmH >= SPEED_LIMIT_THRESHOLD_KMH) {
+//            checkPhoneUsage()
+            Log.d("LocationService", "Speed limit exceeded, checking phone usage")
+        }
+    }
+
+    @RequiresApi(Build.VERSION_CODES.O)
+    private fun sendTripRequest() {
+        val lat = lastLocation!!.latitude.toString()
+        val lng = lastLocation!!.longitude.toString()
+        val currentTime = ZonedDateTime.now(ZoneOffset.UTC)
+        val formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'")
+        val formattedTime = currentTime.format(formatter)
+        Log.e("LocationService", "TripId sent by sendTripRequest")
+        isTripRequestSent = true
+    }
+
+
+    private fun stopTimerOnIdleSpeed() {
+        if (this.IdleSpeedTimer != null) {
+            IdleSpeedTimer!!.cancel()
+            this.IdleSpeedTimer = null
+        }
+    }
+
+
+    private fun startSpeedMonitor() {
+        if (isSpeedMonitoring) return
+
+        isSpeedMonitoring = true
+        val lastSpeedChangeTime =
+            longArrayOf(System.currentTimeMillis()) // Track last speed change timestamp
+
+        speedRunnable = object : Runnable {
+            override fun run() {
+                val currentTime = System.currentTimeMillis()
+
+                // Check if speed is above the threshold
+                if (currentSpeedKmH > SPEED_LIMIT_THRESHOLD_KMH) {
+                    // Check if the speed has remained unchanged for 10 seconds
+                    if (currentSpeedKmH == lastLocation!!.speed * 3.6f &&
+                        (currentTime - lastSpeedChangeTime[0]) >= 10000
+                    ) { // 10 seconds in ms
+                        Log.d(
+                            "LocationService",
+                            "Speed unchanged for 10 seconds, skipping data send"
+                        )
+                    } else {
+                        // Update last speed change time if speed changes
+                        lastSpeedChangeTime[0] = currentTime
+                        Log.d("LocationService", "Data sent to server")
+
+                    }
+
+                    // Run the monitor again after the timeout
+                    speedHandler.postDelayed(this, SPEED_TIMER_TIMEOUT) // e.g., 3 seconds
+                } else {
+                    // If speed drops below the threshold, continue monitoring but do not stop prematurely
+                    Log.d("LocationService", "Speed below threshold, monitoring continues")
+                    speedHandler.postDelayed(this, SPEED_TIMER_TIMEOUT)
+                }
+            }
+        }
+
+        speedHandler.post(speedRunnable as Runnable) // Start the Runnable immediately
+    }
+
+    @RequiresApi(Build.VERSION_CODES.O)
+    private fun checkForRiskEvents(currentSpeedKmH: Float) {
+        val currentTime = System.currentTimeMillis()
+
+        // Detect harsh acceleration
+        if (currentTime - lastUpdateTime > 5000) {
+            val speedDifference: Float = currentSpeedKmH - lastSpeedKmHForEvents
+
+            // Detect sudden brake
+            if (speedDifference < -SUDDEEN_BREAK_THRESHOLD_KMH) {
+                resetFlags() // Ensure no other flags are interfering
+                setFlagsForEvent(3, false, false, true, false, false, false)
+                Log.d(
+                    ">>>",
+                    "Sudden Brake Detected: from $lastSpeedKmHForEvents to $currentSpeedKmH"
+                )
+            } else if (speedDifference > HARSE_ACCELERATION_THRESHOLD) {
+                resetFlags() // Ensure no other flags are interfering
+                setFlagsForEvent(4, false, false, false, true, false, false)
+                Log.d(
+                    ">>>",
+                    "Harsh Acceleration Detected: from $lastSpeedKmHForEvents to $currentSpeedKmH"
+                )
+            }
+
+            lastSpeedKmHForEvents = currentSpeedKmH
+            lastUpdateTime = currentTime
+        } else {
+            resetFlags() // Reset if no events detected in the threshold period
+        }
+
+        // Detect overspeeding
+        if (currentSpeedKmH >= MAX_SPEED) {
+            if (highSpeedStartTime == null) {
+                highSpeedStartTime = LocalDateTime.now()
+            } else if (Duration.between(highSpeedStartTime, LocalDateTime.now()).seconds >= 10) {
+                resetFlags() // Reset before setting a new event
+                setFlagsForEvent(1, true, false, false, false, false, false)
+                Log.d("riskEvent", "Risk event detected: Overspeed")
+                highSpeedStartTime = null
+            }
+        } else {
+            highSpeedStartTime = null
+        }
+
+        // Detect night driving
+        try {
+            val nightDrivingTime =
+                LocalTime.parse(LATE_NIGHT_TIME, DateTimeFormatter.ofPattern("HH:mm"))
+            if (LocalTime.now().isAfter(nightDrivingTime)) {
+                resetFlags() // Reset before setting a new event
+                setFlagsForEvent(5, false, false, false, false, true, false)
+                Log.d(">>>", "Vehicle in use after 10 PM: $LATE_NIGHT_TIME")
+            }
+        } catch (e: Exception) {
+            Log.e("LocationService", "Failed to parse night driving time: " + e.message)
+        }
+    }
+
+    private fun setFlagsForEvent(
+        eventNumber: Int, overspeed: Boolean, sharpturn: Boolean,
+        suddenbreak: Boolean, harshacceleration: Boolean, lateNight: Boolean, onCall: Boolean
+    ) {
+        resetFlags()
+        isOverspeed = overspeed
+        isSharpturn = sharpturn
+        isSuddenBreak = suddenbreak
+        isHarseAcceleration = harshacceleration
+        isLateNight = lateNight
+        isOnCall = onCall
+        Log.d("LocationService", "Event $eventNumber triggered")
+    }
+
+
+    private fun areAllFlagsFalse(): Boolean {
+        return !isOverspeed && !isSharpturn && !isSuddenBreak && !isHarseAcceleration && !isLateNight && !isOnCall
     }
 
     // Method for reverse geocoding to get place name
@@ -310,7 +576,6 @@ class MainActivity : AppCompatActivity(), SensorEventListener, LocationListener 
     }
 
 
-
     override fun onSensorChanged(event: SensorEvent?) {
         if (event?.sensor?.type == Sensor.TYPE_ROTATION_VECTOR) {
             val rotationMatrix = FloatArray(9)
@@ -335,12 +600,15 @@ class MainActivity : AppCompatActivity(), SensorEventListener, LocationListener 
                 if (turnAngle > turnThreshold && speedKmH > speedLimit) {
                     Log.d("TrackingApp", "Turn detected while overspeeding!")
                     Log.d("TrackingApp", "Overspeed At: $turnAngle° at speed $speedKmH km/h")
-                    showToast("Overspeed at : $turnAngle° at speed $speedKmH km/h", Toast.LENGTH_LONG)
+                    showToast(
+                        "Overspeed at : $turnAngle° at speed $speedKmH km/h",
+                        Toast.LENGTH_LONG
+                    )
                 }
             }
 
             // Update the lastAzimuth value
-            if(turnAngle > turnThreshold) {
+            if (turnAngle > turnThreshold) {
                 lastAzimuth = azimuthDegrees
             }
         }
